@@ -3,14 +3,9 @@
 #include <complex.h>
 #include <unistd.h>
 #include <curses.h>
-#include <signal.h>
 #include <mpi.h>
 
 unsigned int mandelbrot(float x, float y);
-void interrupt_signal(int);
-
-//Signal flag for interrupts.
-volatile sig_atomic_t interrupted = 0;
 
 //There's not much point in having many iterations
 unsigned int iterations = 256;
@@ -78,63 +73,79 @@ int main(int argc, char **argv){
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
     //Set a flag upon interrupt so that we can clean up properly.
-    signal(SIGINT, interrupt_signal);
+    //signal(SIGINT, interrupt_signal);
 
     //Initialise ncurses, hide the cursor and get width/height.
-    initscr();
-    curs_set(0);
-    getmaxyx(stdscr, height, width);
+    //initscr();
+    //curs_set(0);
+    //getmaxyx(stdscr, height, width);
     //Initialise colour pairs if we can.
-    start_color();
-    for(short i=1; i < COLORS; i++){
-        init_pair(i, i, COLOR_BLACK);
-    }
+    
+    int width = 236;
+    int height = 55;
+
+
+    //start_color();
+    //for(short i=1; i < COLORS; i++){
+    //    init_pair(i, i, COLOR_BLACK);
+    //}
 
     //printf("h:%d, width:%d", height, width);
 
     float ***xy = alloc_data(height,width,3);
 
-    move(0,0);
+    //move(0,0);
     //Difference from view_x and view_y start points in real coords.
     float delta[] = {
         (float)(view_x[1] - view_x[0]) / width, 
         (float)(view_y[1] - view_y[0]) / height };
 
-    for(int j=0; j<height && !interrupted; j++){
-        for(int i=0; i<width && !interrupted; i++){
+    for(int j=0; j<height; j++){
+        for(int i=0; i<width; i++){
             xy[j][i][0] = view_x[0] + delta[0] * i;
             xy[j][i][1] = view_y[0] + delta[1] * j;
         }
     }
 
-    //if (world_rank == 0) {
-    MPI_Send(&xy, 1, MPI_FLOAT, 1, 0, MPI_COMM_WORLD);
-    //}
+    if (world_rank == 0) {
+        MPI_Send(&xy[0], width*3, MPI_FLOAT, 1, 0, MPI_COMM_WORLD);
+        printf("rank0\n");
+    } else {
+        MPI_Recv(&xy[0], width*3, MPI_FLOAT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    for(int j=0; j<height && !interrupted; j++){
-        for(int i=0; i<width && !interrupted; i++){
-            unsigned int its = mandelbrot(xy[j][i][0],xy[j][i][1]);
+        printf("%f\n", xy[0][0][0]);
+
+        for(int i=0; i<width; i++){
+            unsigned int its = mandelbrot(xy[0][i][0],xy[0][i][1]);
             if(its == 0){
-                attron(COLOR_PAIR(0));
-                mvaddch(j,i,'*');
-                attroff(COLOR_PAIR(0));
+                xy[0][i][2] = 0;
             }else{
-                unsigned int colcode = (its > COLORS) ? COLOR_PAIRS-1 : its;
-                attron(COLOR_PAIR(colcode));
-                mvaddch(j,i,'.');
-                attroff(COLOR_PAIR(colcode));
+                xy[0][i][2] = 1;
             }
         }
+
+        printf("rank1\n");
+        MPI_Send(&xy[0], width*3, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
+        printf("rank1\n");
     }
 
-    refresh();
+    printf("oi\n");
 
-    while(!interrupted){
+    if (world_rank == 0) {
+        printf("desenho\n");
+        MPI_Recv(&xy[0], width*3, MPI_FLOAT, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        printf("depois desenho\n");
+        for(int i=0; i<width; i++){
+            if (xy[0][i][2] == 0) {
+                printf("*");
+            } else {
+                printf(" ");
+            }
+        }
+        printf("\n");
     }
 
-    curs_set(1);
-    endwin();
-    return 0;
+    MPI_Finalize();
 }
 
 //Return the number of iterations taken for a coordinate to blow up -- that is,
@@ -149,9 +160,4 @@ unsigned int mandelbrot(float x, float y){
         z = z*z + c;
     }
     return 0;
-}
-
-//Set a flag saying that we were interrupted.
-void interrupt_signal(int param){
-    interrupted = 1;
 }

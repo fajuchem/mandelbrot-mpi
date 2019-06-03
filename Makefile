@@ -1,5 +1,4 @@
 TARGET = mandelbrot
-LIBS = -lm -lrt 
 LIBS += $(if $(shell pkg-config --exists ncursesw && echo y),\
 	$(shell pkg-config --libs ncursesw),\
 	$(if $(shell pkg-config --exists ncurses && echo y),\
@@ -9,7 +8,7 @@ CFLAGS = -Wall -std=c99
 all: $(TARGET)
 
 $(TARGET): mandelbrot.c
-	$(CC) -o$@ $(CFLAGS) $< $(LIBS)
+	mpicc -o$@ $(CFLAGS) $< $(LIBS)
 
 clean:
 	-rm -f $(TARGET)
