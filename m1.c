@@ -17,8 +17,8 @@ unsigned int mandelbrot(float x, float y);
 int main(int argc, char *argv[])
 {
     int i, world_size, world_rank;
-    int l = 20;
-    int m = 40;
+    int l = 45;
+    int m = 178;
     int n = 3;
     float ***arr = alloc_data(l, m, n);
     float ***other_arr = alloc_data(l, m, n);
