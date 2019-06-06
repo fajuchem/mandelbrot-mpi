@@ -15,7 +15,7 @@ typedef struct Position {
 
 float view_x[] = {-2, 1};
 float view_y[] = {-1, 1};
-unsigned int iterations = 256;
+int iterations = 2560;
 
 unsigned int mandelbrot(float x, float y);
 float **alloc_2d(int rows, int cols);
@@ -23,8 +23,8 @@ float **alloc_2d(int rows, int cols);
 int main(int argc, char *argv[])
 {
     int world_size, world_rank;
-    int height = 50;
-    int width = 200;
+    int height = 40;
+    int width = 120;
     float **sub_arr;
 
     float delta[] = {
@@ -38,8 +38,17 @@ int main(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
+    // @TODO ver isso aqui....
     int columns = height / ceil(sqrt(world_size));
     int rows = width / ceil(sqrt(world_size));
+
+    columns = 5;
+    rows = 20;
+
+    printf("columns:%d, rows:%d\n", columns, rows);
+
+    //printf("height:%d, width:%d, column:%d, rows:%d\n", height, width, columns, rows);
+    //return 0;
 
     int bla[world_size][4];
 
@@ -95,7 +104,7 @@ int main(int argc, char *argv[])
         for (int k = 0; k < world_size; k++) {
             sub_arr = alloc_2d(total_y * total_x, 3);
 
-            //printf("\n\ntotal_y:%d, total_x:%d\n\n", total_y, total_x);
+            printf("\n\ntotal_y:%d, total_x:%d\n\n", total_y, total_x);
 
             MPI_Recv(&(sub_arr[0][0]), total_y * total_x * 3, MPI_FLOAT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &stat);
 
@@ -119,7 +128,7 @@ int main(int argc, char *argv[])
                 }
                 printf("\n ");
             }
-            sleep(2);
+            //sleep(2);
 
         }
 
