@@ -16,7 +16,7 @@ typedef struct Position {
 
 float view_x[] = {-2, 1};
 float view_y[] = {-1, 1};
-int iterations = 2560;
+int iterations = 1000000;
 
 unsigned int mandelbrot(float x, float y);
 float **alloc_2d(int rows, int cols);
@@ -137,16 +137,19 @@ int main(int argc, char *argv[])
             //for (int i = 0; i < total_y * total_x; i++) {
             //    printf("x:%f, y:%f, v:%f\n", sub_arr[i][1], sub_arr[i][0], sub_arr[i][2]);
             //}
+            printf("world_rank:%d\n", stat.MPI_SOURCE);
+
             for (int j = 0; j < height; j++) {
                 for (int i = 0; i < width; i++) {
                     if ((int) arr[j][i] == 0) {
                         printf("*");
                     } else {
-                        printf(" ");
+                        printf(".");
                     }
                 }
                 printf("\n");
             }
+
             //for (int j = 0; j < height; j++) {
             //    for (int i = 0; i < width; i++) {
             //        if ((int) arr[j][i] == 0) {
