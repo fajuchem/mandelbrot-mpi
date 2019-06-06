@@ -27,14 +27,27 @@ int main(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-    int num_per_height = floor(height / world_size);
-    int num_per_width = floor(width / world_size);
+    int columns = height / ceil(sqrt(world_size));
+    int rows = width / ceil(sqrt(world_size));
+
+    int bla[world_size][4];
+
+    int count = 0;
+    for (int j = 0; j < height; j += columns) {
+        for (int i = 0; i < width; i += rows) {
+            bla[count][0] = j + columns;
+            bla[count][1] = j;
+            bla[count][2] = i + rows;
+            bla[count][3] = i;
+            count++;
+        }
+    }
 
     Position pos = {
-        .y1 = world_rank * num_per_height,
-        .y2 = (world_rank + 1 == world_size) ? height : world_rank * num_per_height + num_per_height,
-        .x1 = world_rank * num_per_width,
-        .x2 = (world_rank + 1 == world_size) ? width : world_rank * num_per_width + num_per_width,
+        .y1 = bla[world_rank][1],
+        .y2 = bla[world_rank][0],
+        .x1 = bla[world_rank][3],
+        .x2 = bla[world_rank][2],
     };
 
     int total_y = pos.y2 - pos.y1;
@@ -56,7 +69,7 @@ int main(int argc, char *argv[])
             }
         }
         //for (int i = 0; i < (total_y * total_x); i++) {
-        //    printf("x:%d, y:%d, v:%f\n", (int)sub_arr[i][1], (int) sub_arr[i][0], sub_arr[i][2]);
+        //    printf("i:%d --- x:%d, y:%d, v:%f\n", i, (int)sub_arr[i][1], (int) sub_arr[i][0], sub_arr[i][2]);
         //}
 
         MPI_Send(&(sub_arr[0][0]), total_y * total_x * 3, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
@@ -65,28 +78,28 @@ int main(int argc, char *argv[])
         for (int k = 1; k < world_size; k++) {
             sub_arr = alloc_2d(total_y * total_x, 3);
 
-            printf("\n\ntotal_y:%d, total_x:%d\n\n", total_y, total_x);
+            //printf("\n\ntotal_y:%d, total_x:%d\n\n", total_y, total_x);
 
             MPI_Recv(&(sub_arr[0][0]), total_y * total_x * 3, MPI_FLOAT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &stat);
 
             for (int i = 0; i < total_y * total_x; i++) {
                 int y = (int) sub_arr[i][0];
                 int x = (int) sub_arr[i][1];
-                printf("x:%d, y:%d, v:%f\n", x, y, sub_arr[i][2]);
+                //printf("x:%d, y:%d, v:%f\n", x, y, sub_arr[i][2]);
                 arr[y][x] = sub_arr[i][2];
-                printf("arr:%f\n", arr[y][x]);
             }
 
             //for (int i = 0; i < total_y * total_x; i++) {
             //    printf("x:%f, y:%f, v:%f\n", sub_arr[i][1], sub_arr[i][0], sub_arr[i][2]);
             //}
 
-            for (int j = 2; j < height; j++) {
-                for (int i = 2; i < width; i++) {
-                    printf("%f ", arr[j][i]);
-                }
-                printf("\n ");
+        }
+
+        for (int j = 0; j < height; j++) {
+            for (int i = 0; i < width; i++) {
+                printf("%f ", arr[j][i]);
             }
+            printf("\n ");
         }
     }
 
