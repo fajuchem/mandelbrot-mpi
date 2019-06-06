@@ -7,7 +7,7 @@ CFLAGS = -Wall -Werror -std=c99 -lm
 
 all: $(TARGET)
 
-$(TARGET): m2.c
+$(TARGET): m0.c
 	mpicc -o $@ $< $(CFLAGS) $(LIBS)
 
 clean:

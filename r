@@ -1,3 +1,3 @@
 #!/bin/bash
 
-make && mpirun -np 5 ./mandelbrot
+make && mpirun -np 4 ./mandelbrot
