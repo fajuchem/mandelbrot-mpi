@@ -13,16 +13,27 @@ typedef struct Position {
     int x2;
 } Position;
 
+float view_x[] = {-2, 1};
+float view_y[] = {-1, 1};
+unsigned int iterations = 256;
+
+unsigned int mandelbrot(float x, float y);
 float **alloc_2d(int rows, int cols);
 
 int main(int argc, char *argv[])
 {
     int world_size, world_rank;
-    int height = 10;
-    int width = 10;
+    int height = 50;
+    int width = 200;
     float **sub_arr;
 
+    float delta[] = {
+        (float)(view_x[1] - view_x[0]) / width,
+        (float)(view_y[1] - view_y[0]) / height
+    };
+
     MPI_Status stat;
+    MPI_Request request;
     MPI_Init(NULL,NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
@@ -53,29 +64,35 @@ int main(int argc, char *argv[])
     int total_y = pos.y2 - pos.y1;
     int total_x = pos.x2 - pos.x1;
 
-    if (world_rank != 0) {
-        sub_arr = alloc_2d(total_y * total_x, 3);
 
-        int index = 0;
-        for (int j = pos.y1; j < pos.y2; j++) {
-            for (int i = pos.x1; i < pos.x2; i++) {
-                // height
-                sub_arr[index][0] = (float) j;
-                // width
-                sub_arr[index][1] = (float) i;
-                // value
-                sub_arr[index][2] = (float) world_rank;
-                index++;
+    sub_arr = alloc_2d(total_y * total_x, 3);
+
+    int index = 0;
+    for (int j = pos.y1; j < pos.y2; j++) {
+        for (int i = pos.x1; i < pos.x2; i++) {
+            float x = view_x[0] + delta[0] * i;
+            float y = view_y[0] + delta[1] * j;
+            // height
+            sub_arr[index][0] = (float) j;
+            // width
+            sub_arr[index][1] = (float) i;
+
+            unsigned int its = mandelbrot(x, y);
+            if (its == 0) {
+                sub_arr[index][2] = 0;
+            } else {
+                sub_arr[index][2] = 1;
             }
-        }
-        //for (int i = 0; i < (total_y * total_x); i++) {
-        //    printf("i:%d --- x:%d, y:%d, v:%f\n", i, (int)sub_arr[i][1], (int) sub_arr[i][0], sub_arr[i][2]);
-        //}
 
-        MPI_Send(&(sub_arr[0][0]), total_y * total_x * 3, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
-    } else {
+            index++;
+        }
+    }
+
+    MPI_Isend(&(sub_arr[0][0]), total_y * total_x * 3, MPI_FLOAT, 0, 0, MPI_COMM_WORLD, &request);
+
+    if (world_rank == 0) {
         float **arr = alloc_2d(height, width);
-        for (int k = 1; k < world_size; k++) {
+        for (int k = 0; k < world_size; k++) {
             sub_arr = alloc_2d(total_y * total_x, 3);
 
             //printf("\n\ntotal_y:%d, total_x:%d\n\n", total_y, total_x);
@@ -92,15 +109,20 @@ int main(int argc, char *argv[])
             //for (int i = 0; i < total_y * total_x; i++) {
             //    printf("x:%f, y:%f, v:%f\n", sub_arr[i][1], sub_arr[i][0], sub_arr[i][2]);
             //}
-
-        }
-
-        for (int j = 0; j < height; j++) {
-            for (int i = 0; i < width; i++) {
-                printf("%f ", arr[j][i]);
+            for (int j = 0; j < height; j++) {
+                for (int i = 0; i < width; i++) {
+                    if ((int) arr[j][i] == 0) {
+                        printf("*");
+                    } else {
+                        printf(" ");
+                    }
+                }
+                printf("\n ");
             }
-            printf("\n ");
+            sleep(2);
+
         }
+
     }
 
     //printf("total_y:%d, total_x:%d \n", total_y, total_x);
@@ -117,4 +139,20 @@ float **alloc_2d(int rows, int cols)
         array[i] = &(data[cols*i]);
 
     return array;
+}
+
+//Return the number of iterations taken for a coordinate to blow up -- that is,
+//to increase above 2, at which point it is guaranteed to continue increasing.
+//Returns 0 if the point never blows up; i.e. it is in the set.
+unsigned int mandelbrot(float x, float y)
+{
+    float complex c = x + y*I;
+    //Iterate. Return the number of iterations if z blows up.
+    float complex z = 0;
+    for (unsigned int i=0; i < iterations; i++)
+    {
+        if (cabsf(z) > 2) { return i; }
+        z = z*z + c;
+    }
+    return 0;
 }
