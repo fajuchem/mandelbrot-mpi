@@ -20,16 +20,38 @@ int iterations = 10000000;
 int world_size, world_rank;
 int height = 40;
 int width = 160;
+int keys = 0;
+int key = 1;
+int zoom_i = 0;
+int zoom_o = 0;
+int rgt = 0;
+int lft = 0;
+int down = 0;
+int up = 0;
+float delta[2];
 
 volatile sig_atomic_t interrupted = 0;
 
 void interrupt_signal(int);
+void zoom_out(int);
+void zoom_in(int);
+void mv_rgt(int);
+void mv_lft(int);
+void mv_up(int);
+void mv_down(int);
 unsigned int mandelbrot(float x, float y);
 float **alloc_2d(int rows, int cols);
+int process();
 
 int main(int argc, char *argv[])
 {
     signal(SIGINT, interrupt_signal);
+    signal(SIGVTALRM, zoom_out);
+    signal(SIGUSR1, zoom_in);
+    signal(SIGUSR2, mv_rgt);
+    signal(SIGINFO, mv_lft);
+    signal(SIGWINCH, mv_up);
+    signal(SIGPROF, mv_down);
     putenv("LINES=40");
     putenv("COLUMNS=160");
 
@@ -37,26 +59,85 @@ int main(int argc, char *argv[])
         sscanf(argv[1], "%d", &iterations);
     }
 
-    float delta[] = {
-        (float)(view_x[1] - view_x[0]) / width,
-        (float)(view_y[1] - view_y[0]) / height
-    };
-
-    //float delta_x = (view_x[1] - view_x[0]) * 0.33;
-    //float delta_y = (view_x[0] - view_x[1]) * 0.33;
-    //for(unsigned int i=0;i<2;i++){
-    //    //view_x[i] *= 0.75; 
-    //    //view_x[i] -= delta_x;
-    //    view_y[i] *= 0.75;
-    //    view_y[i] += delta_y;
-    //}
-
-
-    MPI_Status stat;
-    MPI_Request request;
-    MPI_Init(NULL,NULL);
+    MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+    int ch;
+    if (world_rank == 0) {
+        initscr();
+        nodelay(stdscr, TRUE);
+        curs_set(FALSE);
+    }
+
+    while (!interrupted) {
+        if (keys != key) {
+            process();
+            keys++;
+        }
+        sleep(1);
+        if (world_rank == 0) {
+            ch = getch();
+            if (ch == 105) {
+                ch = ERR;
+                ungetch(ch);
+                clear();
+                refresh();
+                system("killall -SIGUSR1 mandelbrot");
+            }
+            if (ch == 106) {
+                ch = ERR;
+                ungetch(ch);
+                clear();
+                refresh();
+                system("killall -SIGPROF mandelbrot");
+            }
+            if (ch == 107) {
+                ch = ERR;
+                ungetch(ch);
+                clear();
+                refresh();
+                system("killall -SIGWINCH mandelbrot");
+            }
+            if (ch == 104) {
+                ch = ERR;
+                ungetch(ch);
+                clear();
+                refresh();
+                system("killall -SIGUSR2 mandelbrot");
+            }
+            if (ch == 108) {
+                ch = ERR;
+                ungetch(ch);
+                clear();
+                refresh();
+                system("killall -SIGINFO mandelbrot");
+            }
+            if (ch == 111) {
+                ch = ERR;
+                ungetch(ch);
+                clear();
+                refresh();
+                system("killall -SIGVTALRM mandelbrot");
+            }
+        }
+    }
+
+    if (world_rank == 0) {
+        curs_set(1);
+        endwin();
+    }
+
+    MPI_Finalize();
+}
+
+int process()
+{
+    MPI_Status stat;
+    MPI_Request request;
+
+    delta[0] = (float)(view_x[1] - view_x[0]) / width;
+    delta[1] = (float)(view_y[1] - view_y[0]) / height;
 
     int columns, rows;
 
@@ -151,9 +232,6 @@ int main(int argc, char *argv[])
             }
         }
         float **sub_arr = alloc_2d(total_y * total_x, 4);
-        initscr();
-        noecho();
-        curs_set(FALSE);
         start_color();
         int colors = COLOR_PAIRS - 1;
 
@@ -163,12 +241,6 @@ int main(int argc, char *argv[])
 
         for (int k = 0; k < world_size; k++) {
             MPI_Recv(&(sub_arr[0][0]), total_y * total_x * 4, MPI_FLOAT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &stat);
-
-            if (interrupted) {
-                curs_set(1);
-                endwin();
-                return 0;
-            }
 
             for (int i = 0; i < total_y * total_x; i++) {
                 int y = (int) sub_arr[i][0];
@@ -197,12 +269,9 @@ int main(int argc, char *argv[])
                 }
             }
         }
-        sleep(15);
-        curs_set(1);
-        endwin();
     }
 
-    MPI_Finalize();
+    return 0;
 }
 
 float **alloc_2d(int rows, int cols)
@@ -230,4 +299,179 @@ unsigned int mandelbrot(float x, float y)
 //Set a flag saying that we were interrupted.
 void interrupt_signal(int param){
     interrupted = 1;
+}
+
+void zoom_out(int param)
+{
+    zoom_o++;
+
+    float delta_y = 0;
+    float delta_x = 0;
+
+    for (int j = 0; j < down; j++) {
+        delta_y += (view_y[1] - view_y[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_y[i] += delta_y;
+    }
+
+    for (int j = 0; j < up; j++) {
+        delta_y += (view_y[1] - view_y[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_y[i] -= delta_y;
+    }
+
+    // RGT ------------
+
+    for (int j = 0; j < rgt; j++) {
+        delta_x += (view_x[1] - view_x[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_x[i] -= delta_x;
+    }
+
+    // LFT -----------
+
+    for (int j = 0; j < lft; j++) {
+        delta_x += (view_x[1] - view_x[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_x[i] += delta_x;
+    }
+
+
+
+    for (int j = 0; j < zoom_o; j++) {
+        for (unsigned int i = 0; i < 2; i++) {
+            view_y[i] *= 1.1;
+            view_y[i] -= delta_y;
+            view_x[i] *= 1.1;
+            view_x[i] -= delta_x;
+        }
+    }
+    key++;
+}
+void zoom_in(int param)
+{
+    zoom_i++;
+
+    float delta_y = 0;
+    float delta_x = 0;
+
+    for (int j = 0; j < down; j++) {
+        delta_y += (view_y[1] - view_y[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_y[i] += delta_y;
+    }
+
+    for (int j = 0; j < up; j++) {
+        delta_y += (view_y[1] - view_y[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_y[i] -= delta_y;
+    }
+
+    for (int j = 0; j < rgt; j++) {
+        delta_x += (view_x[1] - view_x[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_x[i] -= delta_x;
+    }
+
+    for (int j = 0; j < lft; j++) {
+        delta_x += (view_x[1] - view_x[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_x[i] += delta_x;
+    }
+
+
+
+    for (int j = 0; j < zoom_i; j++) {
+        for (unsigned int i = 0; i < 2; i++) {
+            view_y[i] *= 0.90;
+            view_y[i] -= delta_y;
+            view_x[i] *= 0.90;
+            view_x[i] -= delta_x;
+        }
+    }
+    key++;
+}
+
+void mv_lft(int param)
+{
+    lft++;
+    if (rgt > 1) {
+        rgt--;
+    } else {
+        rgt = 0;
+    }
+
+    float delta_x = 0;
+
+    for (int j = 0; j < lft; j++) {
+        delta_x += (view_x[1] - view_x[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_x[i] += delta_x;
+    }
+    key++;
+}
+void mv_rgt(int param)
+{
+    rgt++;
+    if (lft > 1) {
+        lft--;
+    } else {
+        lft = 0;
+    }
+    float delta_x = 0;
+
+    for (int j = 0; j < rgt; j++) {
+        delta_x += (view_x[1] - view_x[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_x[i] -= delta_x;
+    }
+    key++;
+}
+
+void mv_up(int param)
+{
+    up++;
+    if (down > 1) {
+        down--;
+    } else {
+        down = 0;
+    }
+    float delta_y = 0;
+
+    for (int j = 0; j < up; j++) {
+        delta_y += (view_y[1] - view_y[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_y[i] -= delta_y;
+    }
+    key++;
+}
+
+void mv_down(int param)
+{
+    down++;
+    if (up > 1) {
+        up--;
+    } else {
+        up = 0;
+    }
+    float delta_y = 0;
+
+    for (int j = 0; j < down; j++) {
+        delta_y += (view_y[1] - view_y[0]) * 0.22;
+    }
+    for (unsigned int i = 0; i < 2; i++) {
+        view_y[i] += delta_y;
+    }
+    key++;
 }
