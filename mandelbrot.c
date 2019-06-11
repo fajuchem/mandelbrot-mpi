@@ -140,31 +140,42 @@ int process()
     delta[1] = (float)(view_y[1] - view_y[0]) / height;
 
     int columns, rows;
-
-    if (world_size == 2) {
-        columns = 20;
-        rows = 160;
-    } else if (world_size == 4) {
-        columns = 20;
-        rows = 80;
-    } else if (world_size == 8) {
-        columns = 10;
-        rows = 80 ;
-    } else if (world_size == 16) {
-        columns = 10;
-        rows = 40 ;
-    } else if (world_size == 32) {
-        columns = 5;
-        rows = 40 ;
-    } else if (world_size == 64) {
-        columns = 5;
-        rows = 20 ;
-    } else if (world_size == 128) {
-        columns = 5;
-        rows = 10 ;
-    } else if (world_size == 256) {
-        columns = 5;
-        rows = 5 ;
+    swich(world_size){
+	    case 2: 
+			columns = 20;
+	        rows = 160;
+	    	break;
+	    case 4: 
+	        columns = 20;
+	        rows = 80;
+	        break;
+	    case 8:
+	        columns = 10;
+	        rows = 80;
+	        break;
+	    case 16:
+	        columns = 10;
+	        rows = 40;
+	        break;
+	    case 32:
+	        columns = 5;
+	        rows = 40;
+	        break;
+	    case 64:
+	        columns = 5;
+	        rows = 20;
+	        break;
+	    case 128:
+	        columns = 5;
+	        rows = 10;
+	        break;
+	    case 256:
+	        columns = 5;
+	        rows = 5;
+	        break;
+	    default:
+			//do nothing
+			break;
     }
 
 
